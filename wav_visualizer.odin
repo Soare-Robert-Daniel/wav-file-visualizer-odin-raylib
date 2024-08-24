@@ -18,12 +18,12 @@ main :: proc() {
 		os.exit(1)
 	}
 
-	audio_file_path := os.args[1]
+	audio_sample_file_path := os.args[1]
 
 	rl.InitAudioDevice()
 	defer rl.CloseAudioDevice()
 
-	audio_samples, total_samples := load_sample(strings.clone_to_cstring(audio_file_path))
+	audio_samples := load_sample(audio_sample_file_path)
 
 	rl.SetTargetFPS(FPS)
 
@@ -33,12 +33,7 @@ main :: proc() {
 	window_width := rl.GetScreenWidth()
 	window_height := rl.GetScreenHeight()
 
-	wave_heights, wave_num := compute_wave_height(
-		audio_samples,
-		total_samples,
-		rl.GetScreenWidth(),
-		rl.GetScreenHeight(),
-	)
+	wave_heights := compute_wave_height(audio_samples, window_width, window_height)
 
 	delete(audio_samples)
 
@@ -48,15 +43,14 @@ main :: proc() {
 
 		rl.ClearBackground(rl.RAYWHITE)
 
-		draw_waveform(wave_heights, wave_num, window_height / 2)
+		draw_waveform(wave_heights, wave_draw_offset = window_height / 2)
 
 		rl.DrawText("Audio Waveform Visualization", 10, 10, 20, rl.DARKGRAY)
 	}
-
 }
 
-load_sample :: proc(sample_file_path: cstring) -> ([]f32, u32) {
-	audio_wave := rl.LoadWave(sample_file_path)
+load_sample :: proc(sample_file_path: string) -> []f32 {
+	audio_wave := rl.LoadWave(strings.clone_to_cstring(sample_file_path))
 	defer rl.UnloadWave(audio_wave)
 
 	samples_len := audio_wave.frameCount * audio_wave.channels
@@ -93,18 +87,10 @@ load_sample :: proc(sample_file_path: cstring) -> ([]f32, u32) {
 		fmt.println("Unsupported sample size:", audio_wave.sampleSize)
 	}
 
-	return audio_samples, samples_len
+	return audio_samples
 }
 
-compute_wave_height :: proc(
-	samples: []f32,
-	sampleSize: u32,
-	window_width: i32,
-	window_height: i32,
-) -> (
-	[]i32,
-	i32,
-) {
+compute_wave_height :: proc(samples: []f32, window_width: i32, window_height: i32) -> []i32 {
 	wave_heights := make([]i32, window_width)
 
 	waveform_height := f32(window_height - WAVE_HEIGHT_PADDING)
@@ -125,10 +111,12 @@ compute_wave_height :: proc(
 		wave_heights[x] = cast(i32)(max_amplitude * waveform_height / 2)
 	}
 
-	return wave_heights, window_width
+	return wave_heights
 }
 
-draw_waveform :: proc(wave_heights: []i32, wave_num: i32, wave_draw_offset: i32) {
+draw_waveform :: proc(wave_heights: []i32, wave_draw_offset: i32) {
+	wave_num := cast(i32)len(wave_heights)
+
 	for x: i32 = 0; x < wave_num; x += 1 {
 		rl.DrawLine(
 			x,
